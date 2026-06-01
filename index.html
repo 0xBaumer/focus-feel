@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus & Feel</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱</text></svg>" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 2rem;
+      color: #6366f1;
+      letter-spacing: -0.5px;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Card used for every section */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1.25rem;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    /* Text input for the task name */
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 1.25rem;
+    }
+    input[type="text"]:focus { border-color: #6366f1; }
+    input[type="text"]:disabled { background: #f8fafc; color: #94a3b8; }
+
+    /* Large timer display */
+    #timer {
+      font-size: 3.5rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 4px;
+      color: #1e293b;
+      margin-bottom: 1.25rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Generic button style */
+    button {
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Start button (green) / Stop button (red) */
+    #startStop { background: #6366f1; color: #fff; }
+    #startStop.stop { background: #ef4444; }
+
+    /* Save button */
+    #saveBtn { background: #10b981; color: #fff; margin-top: 1rem; }
+
+    /* Mood buttons */
+    .mood-buttons {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .mood-btn {
+      flex: 1;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 1rem;
+      padding: 0.75rem;
+      border-radius: 10px;
+    }
+    .mood-btn.selected {
+      background: #6366f1;
+      color: #fff;
+    }
+
+    /* Optional note textarea */
+    textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #6366f1; }
+
+    /* Error / success banners */
+    .error {
+      margin-top: 0.75rem;
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      background: #fee2e2;
+      color: #b91c1c;
+      font-size: 0.9rem;
+    }
+    .success {
+      margin-top: 0.75rem;
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      background: #d1fae5;
+      color: #065f46;
+      font-size: 0.9rem;
+    }
+
+    /* Stats summary cards row */
+    .stats-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      flex: 1;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #6366f1;
+    }
+    .stat-card .label {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 0.25rem;
+    }
+
+    /* Empty chart placeholder */
+    .empty-chart {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 0.9rem;
+      padding: 1.5rem 0;
+    }
+
+    /* Charts */
+    .chart-title {
+      font-size: 0.85rem;
+      color: #64748b;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Focus &amp; Feel</h1>
+
+    <!-- ── Timer section ── -->
+    <section class="card">
+      <h2>New Session</h2>
+
+      <!-- Task name — required before starting the timer -->
+      <input type="text" id="task" placeholder="What are you working on?" />
+
+      <!-- Live timer display -->
+      <div id="timer">00:00:00</div>
+
+      <!-- Single button that toggles between Start and Stop -->
+      <button id="startStop">Start</button>
+
+      <!-- Feedback messages shown below the button -->
+      <div id="errorMsg"   class="error"   style="display:none"></div>
+      <div id="successMsg" class="success" style="display:none"></div>
+    </section>
+
+    <!-- ── Mood section — hidden until the timer is stopped ── -->
+    <section class="card" id="moodSection" style="display:none">
+      <h2>How do you feel?</h2>
+
+      <!-- Three mood buttons; the selected one is highlighted by frontend.ts -->
+      <div class="mood-buttons">
+        <button class="mood-btn" data-mood="good">😊 Good</button>
+        <button class="mood-btn" data-mood="okay">😐 Okay</button>
+        <button class="mood-btn" data-mood="bad">😔 Bad</button>
+      </div>
+
+      <textarea id="note" placeholder="Optional note about this session…"></textarea>
+
+      <button id="saveBtn">Save Session</button>
+    </section>
+
+    <!-- ── Dashboard section ── -->
+    <section class="card">
+      <h2>Dashboard</h2>
+
+      <!-- Summary cards — values filled in by loadStats() in frontend.ts -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="value" id="totalHours">—</div>
+          <div class="label">Total focus</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="totalSessions">—</div>
+          <div class="label">Sessions</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="longestSession">—</div>
+          <div class="label">Longest</div>
+        </div>
+      </div>
+
+      <p class="chart-title">Focus hours — last 7 days</p>
+      <canvas id="focusChart"></canvas>
+      <p id="focusEmpty" class="empty-chart" style="display:none">No sessions in the last 7 days</p>
+
+      <p class="chart-title">Mood — last 7 days</p>
+      <canvas id="moodChart"></canvas>
+      <p id="moodEmpty" class="empty-chart" style="display:none">No sessions in the last 7 days</p>
+    </section>
+  </div>
+
+  <!-- Bun bundles frontend.ts (and chart.js) automatically when serving this file -->
+  <script type="module" src="./frontend.ts"></script>
+</body>
+</html>
