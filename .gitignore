@@ -1,0 +1,6 @@
+node_modules/
+focus.db
+.env
+.playwright-mcp/
+.DS_Store
+Focus_Feel_Documentation.docx

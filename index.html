@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Focus &amp; Feel</title>
+
+<style>
+  /* Simple styling so the page looks tidy. */
+  body {
+    font: 15px Arial;
+    background: #f2f2f2;
+    color: #333333;
+    width: 480px;
+    margin: 20px auto;
+    padding: 10px;
+  }
+  h1 { color: #4a4ae0; }
+  .box {
+    background: white;
+    padding: 15px;
+    margin: 0 0 15px 0;
+    border: 1px solid #cccccc;
+  }
+  input, textarea {
+    width: 95%;
+    padding: 8px;
+    margin: 5px 0;
+  }
+  #timer {
+    font: 48px Arial;
+    margin: 10px 0;
+  }
+  button {
+    padding: 8px 14px;
+    margin: 3px;
+    cursor: pointer;
+  }
+  /* One bar in the little chart. */
+  .bar {
+    background: #4a4ae0;
+    height: 16px;
+    margin: 4px 0 10px 0;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>Focus &amp; Feel</h1>
+
+<div class="box">
+  <label>What are you working on?</label>
+  <input type="text" id="task" placeholder="e.g. Math homework">
+  <div id="timer">00:00</div>
+  <button id="startBtn" onclick="startStop()">Start</button>
+</div>
+
+<div class="box" id="moodBox" style="display:none">
+  <p>How did this session feel?</p>
+  <button onclick="pickMood('good')">&#128522; Good</button>
+  <button onclick="pickMood('okay')">&#128528; Okay</button>
+  <button onclick="pickMood('bad')">&#128542; Bad</button>
+  <p id="moodPicked"></p>
+  <textarea id="note" placeholder="Optional note about this session"></textarea>
+  <button onclick="saveSession()">Save session</button>
+</div>
+
+<div class="box">
+  <h2>Your sessions</h2>
+  <p id="summary">No sessions yet.</p>
+
+  <p><b>Time per day</b></p>
+  <div id="timeChart"></div>
+
+  <p><b>Mood per day</b></p>
+  <div id="moodChart"></div>
+
+  <p><b>All sessions</b></p>
+  <div id="list"></div>
+</div>
+
+<script>
+// Variables we use everywhere
+var seconds = 0;        // how many seconds the current timer has counted
+var timer = null;       // the setInterval, so we can stop it later
+var running = false;    // is the timer currently going?
+var mood = "";          // the mood the user picked (good, okay or bad)
+var sessions = [];      // the list of all saved sessions
+
+// Ask the server for all the saved sessions, then show them on the page.
+function loadSessions() {
+  fetch("/api/sessions").then(function (response) {
+    return response.json();
+  }).then(function (data) {
+    sessions = data;
+    showStats();
+  });
+}
+
+// Show the time on screen as minutes and seconds (for example 03:09).
+function showTime() {
+  var min = Math.floor(seconds / 60);
+  var sec = seconds % 60;
+  // add a 0 in front of single digits so it looks like a real clock
+  if (min < 10) { min = "0" + min; }
+  if (sec < 10) { sec = "0" + sec; }
+  document.getElementById("timer").innerHTML = min + ":" + sec;
+}
+
+// This runs once every second while the timer is on.
+function tick() {
+  seconds = seconds + 1;
+  showTime();
+}
+
+// The Start and Stop button calls this. The same button does both jobs.
+function startStop() {
+  if (running == false) {
+    // start the timer
+    if (document.getElementById("task").value == "") {
+      alert("Please type what you are working on first.");
+      return;
+    }
+    running = true;
+    timer = setInterval(tick, 1000);   // call tick() every 1000 ms
+    document.getElementById("startBtn").innerHTML = "Stop";
+  } else {
+    // stop the timer
+    running = false;
+    clearInterval(timer);              // stop counting
+    document.getElementById("startBtn").innerHTML = "Start";
+    // only ask for the mood if some time was actually counted
+    if (seconds > 0) {
+      document.getElementById("moodBox").style.display = "block";
+    }
+  }
+}
+
+// Remember which mood button the user clicked.
+function pickMood(chosenMood) {
+  mood = chosenMood;
+  document.getElementById("moodPicked").innerHTML = "You picked: " + chosenMood;
+}
+
+// Save the finished session into the list and reset the page.
+function saveSession() {
+  if (mood == "") {
+    alert("Please pick a mood first.");
+    return;
+  }
+
+  // Put all the info into one object.
+  var session = {
+    task: document.getElementById("task").value,
+    seconds: seconds,
+    mood: mood,
+    note: document.getElementById("note").value
+  };
+
+  // Send the session to the server, which saves it in the database.
+  fetch("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify(session)
+  }).then(function () {
+    loadSessions();   // get the updated list back from the server
+  });
+
+  // Reset everything for the next session.
+  seconds = 0;
+  mood = "";
+  showTime();
+  document.getElementById("task").value = "";
+  document.getElementById("note").value = "";
+  document.getElementById("moodPicked").innerHTML = "";
+  document.getElementById("moodBox").style.display = "none";
+
+  showStats();
+  alert("Session saved!");
+}
+
+// Work out the totals and draw the two charts and the list.
+function showStats() {
+  if (sessions.length == 0) {
+    document.getElementById("summary").innerHTML = "No sessions yet.";
+    document.getElementById("timeChart").innerHTML = "";
+    document.getElementById("moodChart").innerHTML = "";
+    document.getElementById("list").innerHTML = "";
+    return;
+  }
+
+  // Add up the total seconds from every session, for the summary line.
+  var totalSeconds = 0;
+  for (var i = 0; i < sessions.length; i++) {
+    totalSeconds = totalSeconds + sessions[i].seconds;
+  }
+  var totalMinutes = Math.floor(totalSeconds / 60);
+  document.getElementById("summary").innerHTML =
+    "You have done " + sessions.length + " session(s), " +
+    totalMinutes + " minute(s) in total.";
+
+  // Group the sessions by day. For each day we keep the total seconds,
+  // the sum of the mood scores, and how many sessions there were.
+  var days = {};
+  for (var i = 0; i < sessions.length; i++) {
+    var d = sessions[i].day;
+    if (!d) { continue; }   // skip old sessions that have no date
+    if (!days[d]) {
+      days[d] = { seconds: 0, moodSum: 0, count: 0 };
+    }
+    days[d].seconds = days[d].seconds + sessions[i].seconds;
+    days[d].count = days[d].count + 1;
+    // turn the mood into a number: good = 3, okay = 2, bad = 1
+    var score = 2;
+    if (sessions[i].mood == "good") { score = 3; }
+    if (sessions[i].mood == "bad")  { score = 1; }
+    days[d].moodSum = days[d].moodSum + score;
+  }
+
+  // Chart 1: time worked per day.
+  var timeChart = "";
+  for (var day in days) {
+    var minutes = Math.floor(days[day].seconds / 60);
+    var width = minutes * 5;          // 5 pixels for each minute
+    if (width < 20) { width = 20; }
+    if (width > 300) { width = 300; }
+    timeChart = timeChart + "<div>" + day + " (" + minutes + " min)</div>";
+    timeChart = timeChart + "<div class='bar' style='width:" + width + "px'></div>";
+  }
+  document.getElementById("timeChart").innerHTML = timeChart;
+
+  // Chart 2: average mood per day (1 = bad, 2 = okay, 3 = good).
+  var moodChart = "";
+  for (var day in days) {
+    var average = days[day].moodSum / days[day].count;   // a number from 1 to 3
+    var face = "&#128528;";                              // okay
+    if (average >= 2.5) { face = "&#128522;"; }          // good
+    if (average < 1.5)  { face = "&#128542;"; }          // bad
+    var moodWidth = average * 80;                        // 3 gives 240px, 1 gives 80px
+    moodChart = moodChart + "<div>" + day + " " + face +
+                " (" + average.toFixed(1) + ")</div>";
+    moodChart = moodChart + "<div class='bar' style='width:" + moodWidth + "px'></div>";
+  }
+  document.getElementById("moodChart").innerHTML = moodChart;
+
+  // The full list of sessions, with the mood face and the note.
+  var list = "";
+  for (var i = 0; i < sessions.length; i++) {
+    var f = "&#128528;";                          // okay face
+    if (sessions[i].mood == "good") { f = "&#128522;"; }
+    if (sessions[i].mood == "bad")  { f = "&#128542;"; }
+    list = list + "<p>" + f + " " + sessions[i].task +
+           " : " + sessions[i].note + "</p>";
+  }
+  document.getElementById("list").innerHTML = list;
+}
+
+// Show the starting time and load the saved sessions when the page opens.
+showTime();
+loadSessions();
+</script>
+
+</body>
+</html>
